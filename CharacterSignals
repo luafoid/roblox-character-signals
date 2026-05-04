@@ -1,0 +1,68 @@
+local CharacterSignals = {}
+
+local charConnections = {}
+local playerConnections = {}
+
+local function cleanupCharacter(player)
+	if charConnections[player] then
+		for _, conn in charConnections[player] do
+			conn:Disconnect()
+		end
+		charConnections[player] = nil
+	end
+end
+
+local function cleanupPlayer(player)
+	cleanupCharacter(player)
+	if playerConnections[player] then
+		for _, conn in playerConnections[player] do
+			conn:Disconnect()
+		end
+		playerConnections[player] = nil
+	end
+end
+
+local function connectCharacter(player, character, signals)
+	charConnections[player] = {}
+
+	local humanoid = character:WaitForChild("Humanoid", 10)
+	if not humanoid then return end
+
+	for signal, callback in signals do
+		if humanoid[signal] then
+			local conn = humanoid[signal]:Connect(function(...)
+				callback(player, character, ...)
+			end)
+			table.insert(charConnections[player], conn)
+		end
+	end
+end
+
+function CharacterSignals.Watch(player, signals)
+	cleanupPlayer(player)
+	playerConnections[player] = {}
+
+	if player.Character then
+		connectCharacter(player, player.Character, signals)
+	end
+
+	local charConn = player.CharacterAdded:Connect(function(character)
+		cleanupCharacter(player)
+		connectCharacter(player, character, signals)
+	end)
+
+	local leaveConn = game.Players.PlayerRemoving:Connect(function(leaving)
+		if leaving == player then
+			cleanupPlayer(player)
+		end
+	end)
+
+	table.insert(playerConnections[player], charConn)
+	table.insert(playerConnections[player], leaveConn)
+end
+
+function CharacterSignals.Unwatch(player)
+	cleanupPlayer(player)
+end
+
+return CharacterSignals
